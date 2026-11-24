@@ -1,309 +1,668 @@
-# Mini NPU Simulator
 
-**AI가 계산하는 방식을 흉내 내는 작은 계산기**
+import time
+import json
+import math
 
-## 1. 프로젝트 소개
 
-Mini NPU Simulator는 AI 연산의 핵심 원리 중 하나인 MAC(Multiply-Accumulate) 연산을 Python으로 직접 구현한 콘솔 애플리케이션이다.
+# ==========================================
+# 1. 기본 설정 및 MAC 연산
+# ==========================================
 
-입력 패턴과 기준 필터를 같은 위치끼리 곱한 뒤 모든 결과를 더하여 두 배열의 유사도를 점수로 계산한다.
-
-본 프로젝트에서는 십자가(Cross)와 X 패턴을 대상으로 3×3부터 25×25까지 다양한 크기의 행렬을 처리하고, 연산 크기에 따른 실행 시간의 변화를 측정한다.
-
-## 2. 개발 환경
-
-| 항목 | 내용 |
-|---|---|
-| 운영체제 | macOS |
-| 언어 | Python 3.15.2 |
-| 개발 도구 | Visual Studio Code |
-| 사용 라이브러리 | json, time, math |
-| 외부 라이브러리 | 사용하지 않음 |
-| 연산 방식 | 반복문을 이용한 직접 MAC 구현 |
-
-## 3. 프로젝트 파일 구성
-
-```text
-Mini-NPU-Simulator/
-├── main.py       # 프로그램 실행 및 MAC 연산 구현
-├── data.json     # 필터 및 테스트 패턴 데이터
-└── README.md     # 프로젝트 설명 및 결과 보고서
-```
-
-- `main.py`: 사용자 입력, JSON 데이터 분석, 성능 측정 및 결과 출력을 담당한다.
-- `data.json`: 크기별 Cross/X 필터와 테스트 패턴, 정답 데이터를 저장한다.
-- `README.md`: 실행 방법, 구현 원리, 실행 결과 및 분석 내용을 기록한다.
-
-## 4. 실행 방법
-
-### 4-1. 프로그램 실행
-
-프로젝트 폴더에서 터미널을 열고 다음 명령어를 입력한다.
-
-```bash
-python3 main.py
-```
-
-### 4-2. 모드 선택
-
-프로그램 실행 후 원하는 모드를 선택한다.
-
-```text
-==============================
-       Mini NPU Simulator
-==============================
-1. Mode 1 - 사용자 입력 방식
-2. Mode 2 - JSON 데이터 방식
-0. 종료
-```
-
-- 1: 사용자 입력 방식
-- 2: JSON 데이터 분석 방식
-- 0: 프로그램 종료
-
-`data.json` 파일은 `main.py`와 같은 폴더에 위치해야 한다.
-
-## 5. 주요 기능 및 구현 내용
-
-### 5-1. Mode 1: 사용자 입력 방식
-
-사용자로부터 3×3 필터 A, 필터 B 및 입력 패턴을 한 줄씩 입력받는다.
-
-각 행은 공백으로 구분된 숫자 3개로 구성한다.
-
-입력 과정에서 행 또는 열의 개수가 맞지 않거나 숫자로 변환할 수 없는 값이 입력되면 오류 메시지를 출력하고 재입력을 유도한다.
-
-입력된 두 필터에 대해 MAC 점수를 계산하고, 평균 연산 시간과 최종 판정 결과를 출력한다.
-
-점수 비교 결과가 허용오차 이내에서 동일하면 `판정 불가`로 출력한다.
-
-### 5-2. Mode 2: JSON 데이터 분석
-
-`data.json` 파일에서 필터와 패턴 데이터를 불러온다.
-
-패턴 키의 규칙인 `size_N_idx`에서 행렬 크기 N을 추출하고, 해당 크기에 맞는 필터를 선택한다.
-
-예를 들어 `size_13_1`이라는 패턴 키가 입력되면 크기 13을 추출하여 `filters`의 `size_13` 필터를 선택한다.
-
-각 패턴과 필터의 행렬 크기 및 데이터 형식을 검증한 뒤 MAC 연산을 수행한다.
-
-예측 결과와 실제 정답을 비교하여 PASS 또는 FAIL을 출력한다.
-
-데이터 형식 오류나 크기 불일치가 발생하더라도 해당 케이스를 FAIL로 처리하여 프로그램이 중단되지 않도록 구성하였다.
-
-### 5-3. 라벨 정규화
-
-JSON 데이터에서는 동일한 의미의 라벨이 서로 다른 표현으로 저장되어 있다.
-
-| 원본 데이터 | 표준 라벨 |
-|---|---|
-| `+` | Cross |
-| `cross` | Cross |
-| `Cross` | Cross |
-| `x` | X |
-| `X` | X |
-
-이를 통일하기 위해 `normalize_label()` 함수를 별도로 구현하였다.
-
-또한 `normalize_filters()` 함수를 통해 필터의 키도 표준 라벨인 Cross와 X로 변환한다.
-
-라벨 정규화를 별도 함수로 분리하면 데이터 표현 방식이 달라지더라도 비교 및 판정 로직을 일관되게 유지할 수 있다.
-
-### 5-4. MAC 연산 구현
-
-MAC 연산은 외부 라이브러리 없이 중첩 반복문을 사용하여 직접 구현하였다.
-
-연산 과정은 다음과 같다.
-
-1. 입력 패턴과 필터의 행과 열을 순회한다.
-2. 같은 위치에 있는 두 숫자를 곱한다.
-3. 곱셈 결과를 누적 변수에 더한다.
-4. 모든 위치의 연산이 끝나면 최종 점수를 반환한다.
-
-예를 들어 다음 두 행렬이 있다고 가정한다.
-
-입력 패턴:
-
-```text
-0 1 0
-1 1 1
-0 1 0
-```
-
-십자가 필터:
-
-```text
-0 1 0
-1 1 1
-0 1 0
-```
-
-같은 위치끼리 곱한 결과를 모두 더하면 5가 된다.
-
-따라서 MAC 점수는 5이다.
-
-### 5-5. 동점 처리 및 부동소수점 비교
-
-컴퓨터에서 소수점 연산을 수행하면 표현 과정에서 미세한 오차가 발생할 수 있다.
-
-따라서 두 점수를 단순히 `==`로 비교하지 않고 허용오차(Epsilon)를 적용하였다.
-
-사용한 기준은 다음과 같다.
-
-```python
 EPSILON = 1e-9
-```
+REPETITIONS = 100
+FLAT_BENCHMARK_REPETITIONS = 100
 
-두 점수의 차이가 1e-9보다 작으면 동점으로 처리한다.
 
-동점일 경우 Mode 1에서는 `판정 불가`, Mode 2에서는 `UNDECIDED`를 출력한다.
+def mac(input_matrix, filter_matrix):
+    """2차원 배열을 이용해 MAC 연산을 수행한다."""
 
-Mode 2에서는 판정할 수 없는 결과를 실제 정답과 일치한다고 볼 수 없으므로 FAIL로 집계한다.
+    if len(input_matrix) != len(filter_matrix):
+        raise ValueError("두 행렬의 행 개수가 다릅니다.")
 
-### 5-6. 성능 측정
+    total = 0.0
 
-`time.perf_counter()`를 사용하여 MAC 함수가 실행되는 구간의 시간을 측정하였다.
+    for row in range(len(input_matrix)):
+        if len(input_matrix[row]) != len(filter_matrix[row]):
+            raise ValueError("두 행렬의 열 개수가 다릅니다.")
 
-입력, 출력 및 JSON 파일 읽기 시간은 측정에서 제외하였다.
+        for col in range(len(input_matrix[row])):
+            total += input_matrix[row][col] * filter_matrix[row][col]
 
-각 크기의 행렬에 대해 MAC 연산을 100회 반복하고 평균 시간을 계산하였다.
+    return total
 
-연산 횟수는 행렬의 크기를 N이라고 할 때 N²로 계산하였다.
 
-## 6. 실행 결과
+def flatten_matrix(matrix):
+    """2차원 배열을 행 우선 순서의 1차원 배열로 변환한다."""
 
-### 6-1. Mode 1 실행 결과
+    return [value for row in matrix for value in row]
 
-입력 패턴은 십자가이며, 필터 A는 십자가, 필터 B는 X 형태로 입력하였다.
 
-| 항목 | 실행 결과 |
-|---|---:|
-| A 점수 | 5.000000 |
-| B 점수 | 1.000000 |
-| A 평균 연산 시간 | 0.002547 ms |
-| B 평균 연산 시간 | 0.000765 ms |
-| 최종 판정 | A |
+def mac_flat(input_flat, filter_flat):
+    """1차원 배열을 순회하며 MAC 연산을 수행한다."""
 
-A의 MAC 점수가 B보다 높게 계산되었으며, 최종적으로 A로 판정되었다.
+    if len(input_flat) != len(filter_flat):
+        raise ValueError("두 1차원 배열의 길이가 다릅니다.")
 
-### 6-2. Mode 2 실행 결과
+    total = 0.0
 
-| 테스트 케이스 | Cross 점수 | X 점수 | 판정 | 정답 | 결과 |
-|---|---:|---:|---|---|---|
-| size_5_1 | 0.9 | 0.9 | UNDECIDED | X | FAIL |
-| size_5_2 | 8.9 | 0.1 | Cross | Cross | PASS |
-| size_13_1 | 0.3 | 14.7 | X | X | PASS |
-| size_13_2 | 7.5 | 7.5 | UNDECIDED | Cross | FAIL |
-| size_25_1 | 4.9 | 4.9 | UNDECIDED | X | FAIL |
-| size_25_2 | 52.9 | 0.1 | Cross | Cross | PASS |
+    for index in range(len(input_flat)):
+        total += input_flat[index] * filter_flat[index]
 
-최종 집계 결과:
+    return total
 
-- 전체 테스트: 6건
-- 성공(PASS): 3건
-- 실패(FAIL): 3건
 
-### 6-3. 성능 측정 결과
+# ==========================================
+# 2. 패턴 생성기
+# ==========================================
 
-각 크기의 행렬에 대해 MAC 연산을 100회 반복한 실제 측정 결과이다.
+def create_cross_pattern(size):
+    """N×N 십자가 패턴을 생성한다."""
 
-| 행렬 크기 | 평균 연산 시간(ms) | 연산 횟수(N²) |
-|---|---:|---:|
-| 3×3 | 0.001040 | 9 |
-| 5×5 | 0.002205 | 25 |
-| 13×13 | 0.010722 | 169 |
-| 25×25 | 0.034319 | 625 |
+    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        raise ValueError("패턴 크기는 양의 정수여야 합니다.")
 
-※ 실행 환경과 시스템 상태에 따라 측정 시간은 달라질 수 있다.
+    center = size // 2
 
-## 7. 결과 리포트
+    return [
+        [
+            1 if row == center or col == center else 0
+            for col in range(size)
+        ]
+        for row in range(size)
+    ]
 
-### 7-1. 실패 원인 분석
 
-이번 테스트에서는 총 6개 케이스 중 3개가 FAIL로 집계되었다.
+def create_x_pattern(size):
+    """N×N X 패턴을 생성한다."""
 
-첫 번째 실패 케이스는 `size_5_1`이다. Cross와 X의 MAC 점수가 모두 0.9로 계산되어 두 패턴 중 어느 쪽인지 판정할 수 없었다.
+    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        raise ValueError("패턴 크기는 양의 정수여야 합니다.")
 
-두 번째 실패 케이스인 `size_13_2`에서는 두 필터의 점수가 각각 7.5로 동일하게 계산되었다.
+    return [
+        [
+            1 if row == col or row + col == size - 1 else 0
+            for col in range(size)
+        ]
+        for row in range(size)
+    ]
 
-세 번째 실패 케이스인 `size_25_1`에서도 두 점수가 모두 4.9로 나타나 UNDECIDED 처리되었다.
 
-이 세 사례는 프로그램의 비정상 종료나 계산 오류가 아니라, 두 필터의 점수가 동일하게 나타난 데이터의 특성에 따른 결과이다.
+def print_matrix(matrix):
+    """행렬을 보기 좋은 형태로 출력한다."""
 
-프로그램은 허용오차 기준인 1e-9를 적용하여 동점을 정상적으로 감지하였다.
+    for row in matrix:
+        print(" ".join(str(value) for value in row))
 
-Mode 2에서는 판정 결과가 UNDECIDED일 경우 실제 정답과 일치 여부를 확정할 수 없으므로 FAIL로 처리하도록 구현하였다.
 
-따라서 이번 FAIL은 동점 처리 정책이 의도대로 적용된 결과이다.
+def run_pattern_generator():
+    """사용자가 입력한 크기의 Cross와 X 패턴을 생성해 출력한다."""
 
-또한 JSON의 expected 값과 필터 키가 서로 다른 표현을 사용하므로 라벨 정규화 함수를 통해 Cross와 X라는 표준 라벨로 통일하였다.
+    print("\n===== 패턴 생성기 =====")
 
-이를 통해 라벨 표기 방식의 차이로 인해 발생할 수 있는 비교 오류를 방지하였다.
+    while True:
+        try:
+            size = int(input("패턴 크기 N을 입력하세요: "))
 
-데이터 구조 오류와 행렬 크기 불일치도 검증하도록 구성하여 문제가 발생한 케이스만 FAIL로 처리할 수 있게 하였다.
+            if size <= 0:
+                print("1 이상의 정수를 입력해 주세요.")
+                continue
 
-### 7-2. 시간 복잡도 분석
+            break
 
-본 프로젝트의 MAC 연산은 행과 열을 순회하는 두 개의 반복문으로 구성되어 있다.
+        except ValueError:
+            print("숫자로 된 정수를 입력해 주세요.")
 
-N×N 행렬의 모든 위치를 한 번씩 확인하므로 총 연산 횟수는 N²이다.
+    cross_pattern = create_cross_pattern(size)
+    x_pattern = create_x_pattern(size)
 
-따라서 MAC 연산의 시간 복잡도는 O(N²)이다.
+    print(f"\n===== {size}x{size} Cross 패턴 =====")
+    print_matrix(cross_pattern)
 
-3×3 행렬은 9회, 5×5 행렬은 25회, 13×13 행렬은 169회, 25×25 행렬은 625회의 연산을 수행한다.
+    print(f"\n===== {size}x{size} X 패턴 =====")
+    print_matrix(x_pattern)
 
-실제 측정 결과에서도 행렬의 크기가 증가할수록 평균 연산 시간이 증가하는 경향을 확인하였다.
 
-다만 실행 시간은 단순히 연산 횟수만으로 결정되지 않으며 Python 인터프리터, 메모리 접근, 시스템 상태 등의 영향을 받는다.
+# ==========================================
+# 3. 판정 및 라벨 정규화
+# ==========================================
 
-이번 프로젝트에서는 MAC 함수 호출 구간만 측정하여 입력 및 출력 시간의 영향을 최소화하였다.
+def decide(score_a, score_b):
+    """두 점수를 비교하여 A, B 또는 UNDECIDED를 반환한다."""
 
-공간 복잡도 역시 입력 패턴과 필터를 저장하는 행렬의 크기에 비례하므로 O(N²)이다.
+    if abs(score_a - score_b) < EPSILON:
+        return "UNDECIDED"
 
-결과적으로 행렬의 크기가 커질수록 연산량과 메모리 사용량이 함께 증가한다는 점을 확인할 수 있었다.
+    if score_a > score_b:
+        return "A"
 
-## 8. 심층 기술 분석
+    return "B"
 
-### 8-1. MAC 점수가 높을수록 유사하다고 판단하는 이유
 
-MAC 연산은 입력 패턴과 필터의 같은 위치에 있는 숫자를 곱하여 누적한다.
+def normalize_label(label):
+    """서로 다른 라벨 표현을 Cross 또는 X로 통일한다."""
 
-같은 위치에 1이 배치된 경우 곱셈 결과가 커지고, 서로 다른 위치에 값이 배치된 경우 상대적으로 작은 점수가 나온다.
+    if not isinstance(label, str):
+        raise ValueError(f"라벨 형식이 올바르지 않습니다: {label}")
 
-따라서 동일하거나 유사한 패턴일수록 MAC 점수가 높게 나타난다.
+    if label in ["+", "cross", "Cross"]:
+        return "Cross"
 
-단, 이는 본 프로젝트에서 사용하는 단순한 패턴 비교 방식이며 실제 AI 모델의 모든 이미지 인식 원리를 설명하는 것은 아니다.
+    if label in ["x", "X"]:
+        return "X"
 
-### 8-2. 새로운 라벨이 추가되는 경우
+    raise ValueError(f"알 수 없는 라벨입니다: {label}")
 
-새로운 라벨인 `o`가 추가된다면 다음 순서로 확장할 수 있다.
 
-1. `normalize_label()` 함수에 `o`를 표준 라벨로 변환하는 규칙을 추가한다.
-2. 새로운 라벨에 해당하는 필터 데이터를 JSON에 추가한다.
-3. 판정 함수가 기존 두 필터뿐 아니라 새로운 필터의 점수도 비교할 수 있도록 확장한다.
-4. 결과 출력에 새로운 라벨을 반영한다.
-5. 새로운 라벨이 정상적으로 정규화되고 판정되는지 테스트 케이스를 추가한다.
+def normalize_filters(filters):
+    """필터 키를 표준 라벨 Cross와 X로 통일한다."""
 
-이처럼 라벨 정규화 기능을 별도 함수로 분리하면 새로운 패턴을 추가할 때 기존 코드를 수정하는 범위를 줄일 수 있다.
+    if not isinstance(filters, dict):
+        raise ValueError("필터 데이터 형식이 올바르지 않습니다.")
 
-### 8-3. 1000×1000 행렬을 처리하는 경우
+    normalized = {}
 
-1000×1000 행렬은 총 1,000,000개의 원소를 가진다.
+    for key, value in filters.items():
+        label = normalize_label(key)
+        normalized[label] = value
 
-MAC 연산 시 백만 번의 위치별 곱셈과 누적 연산이 필요하다.
+    if "Cross" not in normalized or "X" not in normalized:
+        raise ValueError("Cross 또는 X 필터가 누락되었습니다.")
 
-행렬의 크기가 커지면 처리 시간이 길어지고 메모리 사용량도 증가한다.
+    return normalized
 
-따라서 1차원 배열로 변환하여 메모리 접근 구조를 단순화하거나, 불필요한 데이터 복사를 줄이는 방법을 우선적으로 검토할 수 있다.
 
-추가로 반복문 최적화와 연산 단위 분할 등을 적용할 수 있다.
+# ==========================================
+# 4. 사용자 입력 및 행렬 검증
+# ==========================================
 
-### 8-4. CPU와 NPU의 차이
+def read_matrix(size, name):
+    """사용자가 입력한 행렬을 읽고 형식을 검사한다."""
 
-CPU는 다양한 작업을 처리할 수 있도록 설계된 범용 프로세서이며, 일반적으로 순차적인 명령 처리와 복잡한 제어에 강점이 있다.
+    matrix = []
 
-반면 NPU는 AI 연산에 특화된 프로세서로, 대량의 MAC 연산을 병렬로 처리하도록 설계되어 있다.
+    print(f"\n{name} 입력 ({size}행, 각 행에 숫자 {size}개)")
 
-대규모 행렬 연산에서는 반복적인 곱셈과 누적 연산이 병목이 될 수 있다.
+    for row in range(size):
 
-CPU는 이러한 연산을 순차적으로 처리할 경우 시간이 오래 걸릴 수 있지만, NPU는 다수의 연산을 동시에 수행하여
+        while True:
+            user_input = input(f"{row + 1}번째 행: ")
+
+            try:
+                numbers = [float(value) for value in user_input.split()]
+
+                if len(numbers) != size:
+                    print(
+                        f"입력 형식 오류: 각 줄에 {size}개의 숫자를 "
+                        "공백으로 구분해 입력하세요."
+                    )
+                    continue
+
+                if not all(math.isfinite(value) for value in numbers):
+                    print("유효한 숫자를 입력해 주세요.")
+                    continue
+
+                matrix.append(numbers)
+                break
+
+            except ValueError:
+                print("숫자 파싱 오류: 숫자만 입력해 주세요.")
+
+    return matrix
+
+
+def read_mode1_pattern(size):
+    """Mode 1에서 직접 입력하거나 자동 생성한 패턴을 선택한다."""
+
+    print("\n입력 패턴 방식을 선택하세요.")
+    print("1. 직접 입력")
+    print("2. Cross 패턴 자동 생성")
+    print("3. X 패턴 자동 생성")
+
+    while True:
+        choice = input("선택: ").strip()
+
+        if choice == "1":
+            return read_matrix(size, "입력 패턴")
+
+        if choice == "2":
+            pattern = create_cross_pattern(size)
+            print("\n생성된 Cross 패턴:")
+            print_matrix(pattern)
+            return pattern
+
+        if choice == "3":
+            pattern = create_x_pattern(size)
+            print("\n생성된 X 패턴:")
+            print_matrix(pattern)
+            return pattern
+
+        print("1, 2, 3 중에서 선택해 주세요.")
+
+
+def validate_matrix(matrix, size, name):
+    """행렬의 형식, 크기, 숫자 여부를 검사한다."""
+
+    if not isinstance(matrix, list):
+        raise ValueError(f"{name}: 행렬 형식이 아닙니다.")
+
+    if len(matrix) != size:
+        raise ValueError(f"{name}: 행 개수가 맞지 않습니다.")
+
+    for row in matrix:
+
+        if not isinstance(row, list):
+            raise ValueError(f"{name}: 행 형식이 잘못되었습니다.")
+
+        if len(row) != size:
+            raise ValueError(f"{name}: 열 개수가 맞지 않습니다.")
+
+        for value in row:
+
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+            ):
+                raise ValueError(f"{name}: 유효하지 않은 숫자가 있습니다.")
+
+
+# ==========================================
+# 5. JSON 파일 처리
+# ==========================================
+
+def load_data():
+    """data.json 파일을 읽는다."""
+
+    with open("data.json", "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def get_pattern_size(pattern_key):
+    """패턴 이름 size_N_idx에서 행렬 크기 N을 추출한다."""
+
+    if not isinstance(pattern_key, str):
+        raise ValueError("패턴 이름은 문자열이어야 합니다.")
+
+    parts = pattern_key.split("_")
+
+    if len(parts) != 3 or parts[0] != "size":
+        raise ValueError("패턴 이름 형식이 올바르지 않습니다.")
+
+    try:
+        size = int(parts[1])
+
+    except ValueError:
+        raise ValueError("패턴 크기를 숫자로 읽을 수 없습니다.")
+
+    if size <= 0:
+        raise ValueError("행렬 크기는 양수여야 합니다.")
+
+    return size
+
+
+# ==========================================
+# 6. MAC 연산 시간 측정
+# ==========================================
+
+def measure_mac(input_matrix, filter_matrix, repetitions=REPETITIONS):
+    """2차원 MAC 연산을 반복하고 평균 실행 시간을 측정한다."""
+
+    if repetitions <= 0:
+        raise ValueError("반복 횟수는 양수여야 합니다.")
+
+    total_time = 0.0
+    score = 0.0
+
+    for _ in range(repetitions):
+
+        start = time.perf_counter()
+        score = mac(input_matrix, filter_matrix)
+        end = time.perf_counter()
+
+        total_time += end - start
+
+    average_ms = (total_time / repetitions) * 1000
+
+    return score, average_ms
+
+
+def measure_mac_flat(
+    input_flat,
+    filter_flat,
+    repetitions=FLAT_BENCHMARK_REPETITIONS
+):
+    """1차원 MAC 연산을 반복하고 평균 실행 시간을 측정한다."""
+
+    if repetitions <= 0:
+        raise ValueError("반복 횟수는 양수여야 합니다.")
+
+    total_time = 0.0
+    score = 0.0
+
+    for _ in range(repetitions):
+
+        start = time.perf_counter()
+        score = mac_flat(input_flat, filter_flat)
+        end = time.perf_counter()
+
+        total_time += end - start
+
+    average_ms = (total_time / repetitions) * 1000
+
+    return score, average_ms
+
+
+# ==========================================
+# 7. 성능 분석 및 2D/1D 비교
+# ==========================================
+
+def run_performance_test(sizes):
+    """생성한 Cross/X 패턴을 사용해 크기별 MAC 연산 시간을 측정한다."""
+
+    print("\n===== 성능 측정 결과 =====")
+    print(f"측정 방식: 2차원 MAC 연산 {REPETITIONS}회 반복 평균")
+    print("크기\t평균 연산 시간(ms)\t연산 횟수(N²)")
+
+    for size in sizes:
+
+        input_matrix = create_cross_pattern(size)
+        filter_matrix = create_x_pattern(size)
+
+        _, average_ms = measure_mac(
+            input_matrix,
+            filter_matrix,
+            REPETITIONS
+        )
+
+        operation_count = size ** 2
+
+        print(
+            f"{size}x{size}\t"
+            f"{average_ms:.6f}\t\t"
+            f"{operation_count}"
+        )
+
+
+def run_memory_optimization_test(sizes=None):
+    """동일한 데이터와 반복 횟수로 2차원/1차원 MAC 성능을 비교한다."""
+
+    if sizes is None:
+        sizes = [3, 5, 13, 25, 100, 250]
+
+    print("\n===== 보너스 1: 2차원 / 1차원 MAC 성능 비교 =====")
+    print(f"측정 반복 횟수: 각 방식 {FLAT_BENCHMARK_REPETITIONS}회")
+    print("배열 변환 시간은 측정에서 제외하고 MAC 연산 시간만 비교합니다.")
+
+    print(
+        "크기\t2차원(ms)\t1차원(ms)\t"
+        "점수 일치\t1차원 속도 비교"
+    )
+
+    for size in sizes:
+
+        input_matrix = create_cross_pattern(size)
+        filter_matrix = create_x_pattern(size)
+
+        # 변환은 측정 시작 전에 수행한다.
+        input_flat = flatten_matrix(input_matrix)
+        filter_flat = flatten_matrix(filter_matrix)
+
+        score_2d, time_2d = measure_mac(
+            input_matrix,
+            filter_matrix,
+            FLAT_BENCHMARK_REPETITIONS
+        )
+
+        score_1d, time_1d = measure_mac_flat(
+            input_flat,
+            filter_flat,
+            FLAT_BENCHMARK_REPETITIONS
+        )
+
+        scores_match = math.isclose(
+            score_2d,
+            score_1d,
+            rel_tol=0.0,
+            abs_tol=EPSILON
+        )
+
+        if time_1d < time_2d:
+            comparison = "빠름"
+
+        elif time_1d > time_2d:
+            comparison = "느림"
+
+        else:
+            comparison = "비슷함"
+
+        print(
+            f"{size}x{size}\t"
+            f"{time_2d:.6f}\t"
+            f"{time_1d:.6f}\t"
+            f"{'일치' if scores_match else '불일치'}\t"
+            f"{comparison}"
+        )
+
+
+# ==========================================
+# 8. Mode 1 - 사용자 입력 방식
+# ==========================================
+
+def run_mode1():
+
+    print("\n===== Mode 1: 사용자 입력 방식 =====")
+
+    filter_a = read_matrix(3, "필터 A")
+    filter_b = read_matrix(3, "필터 B")
+
+    print("\n===== 입력 확인 =====")
+    print("필터 A와 필터 B 입력이 완료되었습니다.")
+
+    input_pattern = read_mode1_pattern(3)
+
+    score_a, time_a = measure_mac(input_pattern, filter_a)
+    score_b, time_b = measure_mac(input_pattern, filter_b)
+
+    result = decide(score_a, score_b)
+
+    print("\n===== Mode 1 결과 =====")
+    print(f"A 점수: {score_a:.6f}")
+    print(f"B 점수: {score_b:.6f}")
+    print(f"A 평균 연산 시간: {time_a:.6f} ms")
+    print(f"B 평균 연산 시간: {time_b:.6f} ms")
+
+    if result == "UNDECIDED":
+        print("최종 판정: 판정 불가")
+
+    else:
+        print(f"최종 판정: {result}")
+
+    run_performance_test([3])
+
+
+# ==========================================
+# 9. Mode 2 - JSON 데이터 방식
+# ==========================================
+
+def run_mode2():
+
+    print("\n===== Mode 2: JSON 데이터 방식 =====")
+
+    try:
+        data = load_data()
+
+    except FileNotFoundError:
+        print("오류: data.json 파일을 찾을 수 없습니다.")
+        return
+
+    except json.JSONDecodeError as error:
+        print(f"오류: JSON 파일 형식이 잘못되었습니다. {error}")
+        return
+
+    if not isinstance(data, dict):
+        print("오류: JSON 최상위 구조가 올바르지 않습니다.")
+        return
+
+    if not isinstance(data.get("filters"), dict):
+        print("오류: filters 데이터가 올바르지 않습니다.")
+        return
+
+    if not isinstance(data.get("patterns"), dict):
+        print("오류: patterns 데이터가 올바르지 않습니다.")
+        return
+
+    total_count = 0
+    pass_count = 0
+    fail_count = 0
+    failures = []
+
+    for pattern_key, pattern_data in data["patterns"].items():
+
+        total_count += 1
+
+        print(f"\n[테스트: {pattern_key}]")
+
+        try:
+
+            size = get_pattern_size(pattern_key)
+            filter_key = f"size_{size}"
+
+            if filter_key not in data["filters"]:
+                raise ValueError(f"{filter_key} 필터 데이터가 없습니다.")
+
+            filters = normalize_filters(data["filters"][filter_key])
+
+            if not isinstance(pattern_data, dict):
+                raise ValueError("패턴 데이터 형식이 잘못되었습니다.")
+
+            input_pattern = pattern_data["input"]
+
+            cross_filter = filters["Cross"]
+            x_filter = filters["X"]
+
+            validate_matrix(input_pattern, size, "입력 패턴")
+            validate_matrix(cross_filter, size, "Cross 필터")
+            validate_matrix(x_filter, size, "X 필터")
+
+            expected = normalize_label(pattern_data["expected"])
+
+            cross_score, cross_time = measure_mac(
+                input_pattern,
+                cross_filter
+            )
+
+            x_score, x_time = measure_mac(
+                input_pattern,
+                x_filter
+            )
+
+            result = decide(cross_score, x_score)
+
+            if result == "A":
+                result_label = "Cross"
+
+            elif result == "B":
+                result_label = "X"
+
+            else:
+                result_label = "UNDECIDED"
+
+            if result_label == "UNDECIDED":
+
+                status = "FAIL"
+                reason = "두 점수가 같아 판정할 수 없음"
+
+            elif result_label == expected:
+
+                status = "PASS"
+                reason = "정답 일치"
+
+            else:
+
+                status = "FAIL"
+                reason = "예측 결과와 실제 정답이 다름"
+
+            if status == "PASS":
+                pass_count += 1
+
+            else:
+                fail_count += 1
+                failures.append((pattern_key, reason))
+
+            print(f"패턴 크기: {size} x {size}")
+            print(f"Cross 점수: {cross_score:.6f}")
+            print(f"X 점수: {x_score:.6f}")
+            print(f"판정 결과: {result_label}")
+            print(f"실제 정답: {expected}")
+            print(f"테스트 결과: {status}")
+
+            if status == "FAIL":
+                print(f"실패 사유: {reason}")
+
+        except (ValueError, KeyError, TypeError, IndexError) as error:
+
+            fail_count += 1
+
+            reason = str(error)
+            failures.append((pattern_key, reason))
+
+            print("테스트 결과: FAIL")
+            print(f"실패 사유: {reason}")
+
+    run_performance_test([3, 5, 13, 25])
+
+    run_memory_optimization_test([3, 5, 13, 25])
+
+    print("\n===== Mode 2 최종 결과 =====")
+    print(f"전체 테스트: {total_count}")
+    print(f"성공: {pass_count}")
+    print(f"실패: {fail_count}")
+
+    if failures:
+
+        print("\n===== 실패 케이스 목록 =====")
+
+        for case_name, reason in failures:
+            print(f"- {case_name}: {reason}")
+
+    else:
+        print("\n실패 케이스가 없습니다.")
+
+
+# ==========================================
+# 10. 메인 메뉴
+# ==========================================
+
+def main():
+
+    while True:
+
+        print("\n==============================")
+        print("       Mini NPU Simulator")
+        print("==============================")
+        print("1. Mode 1 - 사용자 입력 방식")
+        print("2. Mode 2 - JSON 데이터 방식")
+        print("3. 패턴 생성기")
+        print("0. 종료")
+
+        choice = input("\n실행할 모드를 선택하세요: ").strip()
+
+        if choice == "1":
+            run_mode1()
+
+        elif choice == "2":
+            run_mode2()
+
+        elif choice == "3":
+            run_pattern_generator()
+
+        elif choice == "0":
+            print("프로그램을 종료합니다.")
+            break
+
+        else:
+            print("잘못된 선택입니다. 0, 1, 2, 3 중에서 선택해 주세요.")
+
+
+if __name__ == "__main__":
+    main()
